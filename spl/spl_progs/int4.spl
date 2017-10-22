@@ -1,0 +1,100 @@
+
+alias physicalSP S0;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1]; 	//System call No is jus tBelow the IP on the stack, as INT will save IP on TOP.								       S T A C K
+
+if (sysCallNo == 5) then    	// W R I T E --------------------------------------------------------------------------------------------		       |
+	alias wordToWrite S2;					// Just below SystemCall No. is the space for Return value. The rest are Arguments						||Arg2||
+	wordToWrite = [physicalSP - 3];		// WORD to write 																							||Arg1||
+
+	alias fileDescriptor S3;				
+	fileDescriptor = [physicalSP - 4];  // File Descriptor 
+
+	alias currentPCB S4;
+	alias fileTableIndex S5;
+	alias seekPosition S6;
+	alias fatIndex S7;
+	alias i S8;
+	alias flag S9;
+	alias dataBlockNO S10;
+	alias flag2 S11;
+
+
+	if(0>fileDescriptor || fileDescriptor>7) then
+		[physicalSP -2] = -1; 			//Failure, Invalid fileDescriptor
+		print("WriFDscEr");
+		ireturn;
+	endif;
+
+	currentPCB = READY_LIST + ((PTBR - PAGE_TABLE) /8) * 32; // PID = (PTBR - PAGE_TABLE) /8)
+	
+	fileTableIndex = [currentPCB + 15 + fileDescriptor*2];
+	seekPosition = [currentPCB + 15 + fileDescriptor*2 + 1]; //Find table index and seek position of open file from PCB
+
+	if (fileTableIndex == -1 || seekPosition == -1) then
+		[physicalSP -2] = -1; 			//Failure, Invalid File Table Index or Seek Position
+		print("WriFTIskp");
+		ireturn;
+	endif;
+	
+	fatIndex = [FILE_TABLE + fileTableIndex*2]; //Find Fat index from System Wide Open File Table
+
+	load(1, [FAT + fatIndex*8 + 2]); //load the BASIC BLOCK of the OPEN FILE to SCRATCHPAD
+
+	flag2 =0;
+	dataBlockNO = [SCRATCHPAD + (seekPosition/512)];
+
+	if ( dataBlockNO == -1) then
+		flag2 = 1;
+		i= 24;
+		flag =0;
+		while (i<448) do 
+			if([DISK_LIST + i] == 0)  then
+				flag =1;			 					// Freen entry is found at index  i
+				[DISK_LIST + i] = 1; 					//setting the Data Block Entry as 1 in DFL
+				[SCRATCHPAD + (seekPosition/512)] = i;	//Set the Data block Location in Basic block of File			
+
+				[FAT + fatIndex*8 + 1] = [FAT + fatIndex*8 + 1] + 512; //add the extra memory size to the FAT entry
+
+				store(1,[FAT + fatIndex*8 + 2]); 		//store the basic block back to disk
+				store(5,19); 		//store the FAT back to disk
+				store(6,20); 		//store the DFL back to disk
+				break;
+			endif;
+
+			i = i+1;
+		endwhile;
+
+		if(flag == 0) then
+			[physicalSP -2] = -1; //NO Free space in FileSystem
+			print("wriNoFre");
+			ireturn;
+		endif;
+
+	endif;
+
+	if(flag2 == 1) then
+		dataBlockNO = i;
+	endif;
+
+	load(1, dataBlockNO); 		//Fetch datablock from DISK to MEMORY
+
+	[SCRATCHPAD + (seekPosition % 512)] = wordToWrite; // write the word to the OFFSET Pointed Location in Data Block
+
+	if(dataBlockNO >= 24 || dataBlockNO <448) then
+		store (1, dataBlockNO);
+	else
+		print("WriInvStr");
+	endif;
+
+	[currentPCB + 15 + fileDescriptor*2 + 1] = [currentPCB + 15 + fileDescriptor*2 + 1] + 1;
+
+	[physicalSP - 2] = 0; //Success
+	ireturn;
+endif;
+
+if (sysCallNo == 4) then		
+	ireturn;
+endif;

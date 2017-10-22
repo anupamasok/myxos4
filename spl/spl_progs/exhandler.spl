@@ -1,0 +1,150 @@
+alias Cause S0;
+alias VPagenum S1;
+alias Ip_addr S2;
+alias physicalSP S3;
+
+//print("Exhand");
+
+Cause 	 = 	EFR % 10;				// Gets value of cause field (size 1 char)
+VPagenum = (EFR / 10) % 100;    	// Gets value of BadVAddr 
+Ip_addr	 = (EFR / 1000);			//Gets value of IP at the point of exception
+physicalSP = [PTBR + 2*(SP/512) ]*512 + (SP%512);
+
+if (Cause != 0) then
+	if(Cause == 1) then
+		print("IllInsExc");
+		breakpoint;
+	endif;
+
+	if(Cause == 2) then
+		print("IllMemExc");
+	endif;
+
+	if(Cause == 3) then
+		print("AriExcep");
+	endif;
+
+	if(Cause == 4) then
+		print("IllOpExc");
+	endif;
+	
+	print "ExcExit";
+
+	[physicalSP + 1] = 10;			//Pass the System Call No. For EXIT
+	SP = SP + 2;					//2 space. -> 1 for Sys Call No. 1 for IP on top of it.
+	inline "JMP 11776"; 			//Exit Interrupt Routine in 23rd page (23*512= 11776)
+endif;
+
+
+
+
+
+//------------------------------------Page Fault exception-------------------------------------
+	
+
+
+
+if ([PTBR + 2*VPagenum] == -1) then	//The Current Process Must Exit (Invalid Adress)
+	print "ExcExit2";		
+	[physicalSP + 1] = 10;			//Pass the System Call No. For EXIT
+	SP = SP + 2;					//2 space. -> 1 for Sys Call No. 1 for IP on top of it.
+	inline "JMP 11776"; 			//Exit Interrupt Routine in 23rd page (23*512= 11776)
+endif;
+
+alias pageNum S5; 
+alias i S4;
+i =0;
+while (i < 64) do					//Find a Free Page in Memory. If not we replace a page in to swap so as to get a free page
+	if ( [MEM_LIST + i] == 0) then
+			[MEM_LIST + i] = [MEM_LIST + i] + 1; //Indicate as used		//set it as occupied. as we are going to use it now.
+			pageNum = i;
+		break;
+	endif;
+	i = i + 1;
+endwhile;
+
+
+alias pageIndex S6;
+alias j S7;
+
+if(i == 64) then //Free Page Is Not Found (Page ReplaceMent)
+	pageIndex = PTBR - PAGE_TABLE + 2*VPagenum + 2;	//scanning starts from current page entry which issued the fault
+	
+	while (1) do
+		//print("*");							//loop until second chance finds a page to replace
+		if(pageIndex >= 256) then
+			pageIndex = pageIndex - 256;	//circular search
+			//print("$");
+		endif;
+
+		if (PAGE_TABLE + pageIndex == PTBR + 6) then			//replace stack except for current process stack
+			pageIndex = pageIndex + 2; //skip stack pages as it cannot be considered for replacement
+			//print("^");
+			continue;			
+		endif;
+
+		if ([PAGE_TABLE + pageIndex + 1] == "01") then	//Valid Unreferenced. Meant For ReplaceMent
+			if ([MEM_LIST + [PAGE_TABLE + pageIndex] ] > 1) then
+				pageIndex = pageIndex + 2; //Skip page as page shared in another process
+				continue;
+			endif;
+
+					 //At this point we have found the page to replace in pageIndex
+
+			j = 448; //to find a free swap block in DFL in disk
+			while (j < 512) do
+				if([DISK_LIST + j] == 0) then
+					break;
+				endif;
+				j = j + 1;
+			endwhile;
+
+			if(j == 512) then		//No Free Space, Hence the process must be made to EXIT
+				print "ExcExit3";	
+				[physicalSP + 1] = 10;			//Pass the System Call No. For EXIT
+				SP = SP + 2;					//2 space. -> 1 for Sys Call No. 1 for IP on top of it.
+				inline "JMP 11776"; 			//Exit Interrupt Routine in 23rd page (23*512= 11776)
+			endif;
+
+			store([PAGE_TABLE + pageIndex],j); //store into the swap location found
+			[DISK_LIST + j] = 1;
+			store (6,20);
+
+			pageNum = [PAGE_TABLE + pageIndex];	  //pageNum is the page we want to load the page into
+			[PAGE_TABLE + pageIndex] = j;		  
+			[PAGE_TABLE + pageIndex + 1] = "00";  //Set as invalid. So that the exception will make it load into MEMORY next time
+
+			break;								 //Important to Break				
+		endif;
+
+		if ([PAGE_TABLE + pageIndex + 1] == "11") then
+			[PAGE_TABLE + pageIndex + 1] = "01"; 			  //Referenced is set as Unreferenced in Second Chance algorithm
+		endif;
+
+		pageIndex = pageIndex + 2;
+	endwhile;
+
+endif;
+
+alias physicalPageNo S8;
+physicalPageNo = [PTBR + VPagenum*2]; //finding the physical page no. that casused the exception
+
+if (21 <= physicalPageNo && physicalPageNo < 448) then	//valid disk block
+	load (pageNum,physicalPageNo);
+endif;
+
+if (physicalPageNo >= 448) then							//Swap space
+	load (pageNum,physicalPageNo);
+	[DISK_LIST + physicalPageNo] = [DISK_LIST + physicalPageNo] - 1; // (Because swap disk is no longer used by this process hence sharing is reduced
+	store (6,20);
+endif;
+
+[PTBR + VPagenum*2] = pageNum;
+[PTBR + VPagenum*2 + 1] = "11"; //set as Referenced and valid
+
+SP = SP + 1;
+physicalSP = [PTBR + 2*(SP/512) ]*512 + (SP%512);
+[physicalSP] = Ip_addr; //from EFR
+
+//print("Exhand2");
+ireturn;
