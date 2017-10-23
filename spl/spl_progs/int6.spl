@@ -1,7 +1,10 @@
+define PAGE_TABLE 30720;
+define READY_LIST 31232;
+
 alias physicalSP S0;
 physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
 
-alias sysCallNo S1;
+alias sysCallNo S1;		
 sysCallNo = [physicalSP - 1]; 		//System call No is just Below the IP on the stack, as INT will save IP on TOP.
 
 if (sysCallNo == 9) then			// E X E C
@@ -73,7 +76,7 @@ if (sysCallNo == 9) then			// E X E C
 	
 	[PTBR + 7] = "01"; 									//Setting stack page as valid
 
-	currentPCB = READY_LIST + ((PTBR - 1024)/8)*32 ;
+	currentPCB = READY_LIST + ((PTBR - PAGE_TABLE)/8)*32 ;
 	i =0 ;
 	while(i<8) do
 		fileTableIndex =[currentPCB + 15 + i*2];		//closing opened Files

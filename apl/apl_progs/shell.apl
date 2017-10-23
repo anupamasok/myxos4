@@ -21,7 +21,7 @@ integer main(){
 			endif;
 		endif;
 
-		if (pid >= 0 && pid < 32) then
+		if (pid >= 0 && pid < 48) then
 			status = Wait(pid);
 		endif;
 

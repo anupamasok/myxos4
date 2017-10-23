@@ -1,3 +1,6 @@
+define PAGE_TABLE 30720;
+define READY_LIST 31232;
+
 alias physicalSP S0;
 physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
 
@@ -36,7 +39,7 @@ if (sysCallNo == 14) then                 // S I G N A L
 	
 	i =0;
 
-	while (i < 32) do
+	while (i < 48) do
 		if([READY_LIST + 32*i + 1] == currPID + 100) then
 			[READY_LIST + 32*i + 1] = 1;
 		endif;
@@ -85,7 +88,7 @@ if (sysCallNo == 10) then               //E X I T// signal all the waiting proce
 	
 	i =0;
 
-	while (i < 32) do
+	while (i < 48) do
 		if([READY_LIST + 32*i + 1] == currPID + 100) then
 			[READY_LIST + 32*i + 1] = 1;	// when exit, make all waiting processess ready
 		endif;
@@ -100,9 +103,9 @@ endif;
 	newPID = currPID;
 	i = 0;
 
-	while (i < 32) do
+	while (i < 48) do
 		newPID = newPID + 1;
-		if(newPID == 32) then
+		if(newPID == 48) then
 			newPID = 0;
 		endif;
 	

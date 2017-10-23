@@ -1,3 +1,6 @@
+define PAGE_TABLE 30720;
+define READY_LIST 31232;
+
 load (5,19); 	// *Load FAT from disk to Memory
 load (6,20); 	// *Load Disk Free List From Memory
 
@@ -50,11 +53,20 @@ while (counter < 64) do
 	[MEM_LIST + counter] = 0;			//File location on MEM_LIST
 	counter = counter + 1;				//Memory List is set for all "OS pages + INIT pages"!!!
 endwhile;
-										// Stack For Init is in 28th page
+										// Stack For Init is in 28th pag
+
+[MEM_LIST + 3] = 0; //set MEMlist space as 0
+[MEM_LIST + 4] = 0;
+
+[MEM_LIST + 60] = 1;	//set up Memlist and Page tables
+[MEM_LIST + 61] = 1;
+[MEM_LIST + 62] = 1;
+[MEM_LIST + 63] = 1;
+
 //##################### S E T T I N G - U P - P C B - S T A T E S #########################
 
 counter = 0;
-while (counter < 32) do				//32 PCBs
+while (counter < 48) do				//48 PCBs
 	[READY_LIST + counter*32 + 1] = 0;		
 	counter = counter + 1;			//set as terminated
 endwhile;
@@ -62,7 +74,7 @@ endwhile;
 alias i S1;
 i =0;
 counter =0;
-while (counter <32) do
+while (counter <48) do
 	i = 15;
 	while (i<32) do
 		[READY_LIST + 32*counter + i] = -1;
@@ -112,12 +124,6 @@ PTLR = 4; 					// each process 4 pages										//
 																					// P. C. B  - S E T U P
 [READY_LIST + 0*32 + 1] = 2;//Setting Process State (in 2nd bit in PCB) as 2 (Runing)
 [READY_LIST + 0*32 + 31] = 0;//Setting Parent of INIT as INIT itself
-
-counter=15;
-while (counter < 31) do
-	[READY_LIST + 32*counter] = -1;
-	counter = counter + 1;
-endwhile;
 
 //#########################################################################################
 

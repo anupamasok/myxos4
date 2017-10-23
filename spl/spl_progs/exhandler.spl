@@ -1,3 +1,6 @@
+define PAGE_TABLE 30720;
+define READY_LIST 31232;
+
 alias Cause S0;
 alias VPagenum S1;
 alias Ip_addr S2;
@@ -72,8 +75,8 @@ if(i == 64) then //Free Page Is Not Found (Page ReplaceMent)
 	
 	while (1) do
 		//print("*");							//loop until second chance finds a page to replace
-		if(pageIndex >= 256) then
-			pageIndex = pageIndex - 256;	//circular search
+		if(pageIndex >= 384) then
+			pageIndex = pageIndex - 384;	//circular search
 			//print("$");
 		endif;
 
@@ -146,5 +149,5 @@ SP = SP + 1;
 physicalSP = [PTBR + 2*(SP/512) ]*512 + (SP%512);
 [physicalSP] = Ip_addr; //from EFR
 
-//print("Exhand2");
+//	print("Exhand2");
 ireturn;
